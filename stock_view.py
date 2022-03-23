@@ -1,113 +1,28 @@
-import yahoo_fin.stock_info as si
 import time
 
-# while 1:
-#     start = time.time()
-#     print(si.get_live_price("amzn"))
-#     print(time.time() - start)
-#
-# exit()
-
-
-import yfinance as yf
-
-msft = yf.Ticker("MSFT")
-
-# print(msft.history(period='1d', interval='1m'))
-
-#
-# # get stock info
-# for info in dir(msft)[dir(msft).index('history'):]:
-#     print(f'{info}: {type(getattr(msft, info))}', getattr(msft, info), '\n\n', sep='\n\n')
-
-# Calculate daily change from close - previous close
-
-# Stock Market
-
-# Imports
-import yfinance
-import json
 import readchar
-import time
+import yfinance
 import locale
+import json
+import reprint
+from blessed import Terminal
 
-# Assign contents of json to dict
 with open("tickers.json", "r") as tickers_json:
     ticker_data = json.load(tickers_json)
 
-
-# Clear console
-def clear():
-    print("\033c", end="")
-
-
-# Set locale for currency
 locale.setlocale(locale.LC_ALL, '')
-
-
-# RGB ANSI formatter
-def rgb(rgb_list):
-    r = rgb_list[0]
-    g = rgb_list[1]
-    b = rgb_list[2]
-    return f"\033[38;2;{r};{g};{b}m"
-
-
-# Search dict for query
-def search(query):
-    results = []
-    for key in ticker_data:
-        if len(results) <= 25:
-            if query.lower() in key.lower() or query.lower() in ticker_data[key].lower():
-                results.append(key)
-        else:
-            break
-    return results
-
-
-# Format search result
-def search_result(result):
-    info = ticker_data[result] if len(ticker_data[result]) <= 50 else f"{ticker_data[result][:46]} ..."
-    return f"{result} - {info}"
-
-
-# Search by ticker
-def stock_search():
-    query = []
-    while 1:
-        clear()
-        print("Search by ticker: ", end="")
-        print("".join(query), end="\n\n")
-        if len(query):
-            for result in search("".join(query)):
-                print(search_result(result))
-        key = readchar.readkey()
-        if key == "\r":  # Enter
-            break
-        elif key == "\x7f":  # Backspace
-            try:
-                query.pop(-1)
-            except:
-                pass
-        else:
-            query.append(key)
-    # print(query)
-    # time.sleep(3)
-    return "".join(query)
-
-
-# Check if query exists in ticker json
-def check_query(query):
-    try:
-        ticker_data[query.upper()]
-        return True
-    except:
-        return False
 
 
 # Format money
 def fm(value):
     return locale.currency(value, symbol=False, grouping=True)
+
+
+def rgb(rgb_list):
+    r = rgb_list[0]
+    g = rgb_list[1]
+    b = rgb_list[2]
+    return f"\033[38;2;{r};{g};{b}m"
 
 
 days_to_scale = {
@@ -125,11 +40,10 @@ red = rgb([252, 36, 3])
 reset = "\033[0m"
 
 
-# Generate graph for stock
-def stock_entry(ticker, days):
+def get_lines(ticker, days):
     si = [f"\nTicker: {ticker.upper()}"]
     days = days if days < 60 else 60
-
+    graph = []
     # Graph
     try:
         stock = yfinance.Ticker(ticker)
@@ -163,7 +77,6 @@ def stock_entry(ticker, days):
         increments_y = [str(round(close_min + close_range * (i / 10), 2)).ljust(offset, "0") for i in range(11)]
 
         # Building the graph
-        graph = []
         for i in range(21):
             graph.append([])
             if i % 2 == 0:
@@ -182,11 +95,10 @@ def stock_entry(ticker, days):
                     graph[20 - i].append(f"{green if change >= 0 else red}{half_block}{reset}" * increment_x)
                 else:
                     graph[20 - i].append(" " * increment_x)
-
-        for row in graph:
-            print("".join(row))
-            time.sleep(0.03)
-    except:
+        # for row in graph:
+        #     print("".join(row))
+        #     time.sleep(0.03)
+    except Exception as e:
         print("No graph")
 
     try:
@@ -226,24 +138,40 @@ def stock_entry(ticker, days):
     except:
         si.insert(1, f"Name: {ticker_data[ticker.upper()]}")
 
-    for line in si:
-        print(line)
-        time.sleep(0.03)
+    return [''.join(row) for row in graph], si
 
 
-def loop():
-    while 1:
-        clear()
-        result = stock_search()
-        clear()
-        if check_query(result):
-            stock_entry(result, 30)
-        else:
-            print("No stocks found for Ticker", repr(result))
-        print("\nSearch again (y/n):")
-        cont = readchar.readkey()
-        if cont == "n":
-            break
+class StockUI:
+    def __init__(self, terminal: Terminal):
+        self.terminal = terminal
 
+    def leading_margin(self) -> str:
+        return ' ' * (max((self.terminal.width - 72) // 2, 0))
 
-loop()
+    def show(self, ticker):
+        with reprint.output(no_warning=True) as output:
+            graph, description = get_lines(ticker, 30)
+            output.append('\n')
+            output.append('\n')
+            if len(graph[-1]) + len(max(description, key=len)) + 8 < self.terminal.width:
+                n = 2
+                i = n
+                while i < len(description):
+                    description.insert(i, '\n')
+                    i += (n + 1)
+                for i in range(max(len(graph), len(description))):
+                    l = ' ' * (self.terminal.width // 2 - 2)
+                    if i < len(graph):
+                        l = ' ' * (self.terminal.width // 2 - len(graph[-1])) + graph[i]
+                    if i < len(description):
+                        l += ' ' * 8 + description[i].lstrip()
+                    output.append(l)
+            else:
+                for line in graph + ['\n', '\n', '\n'] + description:
+                    output.append(self.leading_margin() + line)
+
+            output.append(self.leading_margin() + "PRESS Q TO EXIT")
+        while 1:
+            key = readchar.readkey()
+            if key == 'q':
+                return

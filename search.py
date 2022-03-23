@@ -6,6 +6,7 @@ import json
 from typing import *
 import readchar
 
+
 class SearchUI:
     def __init__(self, terminal: Terminal):
         self.terminal = terminal
@@ -15,7 +16,6 @@ class SearchUI:
             self.ticker_data = json.load(tickers_json)
         self.autocompletes = []
         self.selected_idx = None
-        self.print_logo()
 
     def get_autocompletes(self):
         cur_selected = '' if self.selected_idx is None else self.autocompletes[self.selected_idx]
@@ -42,8 +42,9 @@ class SearchUI:
         return ' ' * (max((self.terminal.width - 72) // 2, 0))
 
     def get_ticker(self) -> str:
+        self.print_logo()
         with self.terminal.cbreak() as break_manager, \
-                reprint.output(initial_len=max((self.terminal.height - 7) // 3 * 2, 9)) as output:
+                reprint.output(initial_len=max((self.terminal.height - 7) // 3 * 2, 9), no_warning=True) as output:
             # width 72
             output[0] = self.leading_margin() + '╭' + '—' * 70 + '╮'
             output[1] = self.leading_margin() + '│' + '%-69s' % '🔎 ' + '│'
@@ -116,21 +117,19 @@ class SearchUI:
     def clear():
         print("\033c", end="")
 
-    def on_resize(self):
-        print(f'height={self.terminal.height}, width={self.terminal.width}')
+
+if __name__ == '__main__':
+
+    term = Terminal()
+
+    ui = SearchUI(term)
 
 
-term = Terminal()
-
-ui = SearchUI(term)
-
-
-def on_resize(sig, action):
-    ui.on_resize()
-    # print(f'height={term.height}, width={term.width}')
+    def on_resize(sig, action):
+        print(f'height={term.height}, width={term.width}')
 
 
-signal.signal(signal.SIGWINCH, on_resize)
+    signal.signal(signal.SIGWINCH, on_resize)
 
-while 1:
-    print(ui.get_ticker())
+    while 1:
+        print(ui.get_ticker())
